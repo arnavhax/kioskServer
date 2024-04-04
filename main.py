@@ -2,9 +2,10 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 import cups
 import requests
+from io import BytesIO
 from zipfile import ZipFile
 import os
-
+import base64
 app = Flask(__name__)
 CORS(app)
 UPLOAD_DIRECTORY = 'user_uploads'
@@ -83,17 +84,34 @@ def end_session():
     else:
         return jsonify({'error': 'Failed to end session in the cloud server.'}), 500
 
+    
 @app.route('/download', methods=['GET'])
-def download_files():
-    # Fetch files from the cloud server
-    cloud_download_response = requests.get(f'{CLOUD_SERVER_URL}/download')
+def download():
+    try:
+        # Make a request to the original Flask application's /download route
+        download_response = requests.get(f'{CLOUD_SERVER_URL}/download')
 
-    # Check if the cloud server responded with files
-    if cloud_download_response.status_code == 200:
-        files_data = cloud_download_response.json()
-        return jsonify(files_data), 200
-    else:
-        return jsonify({'error': 'Failed to download files from cloud server.'}), 500
+        # Check if the request was successful
+        if download_response.status_code != 200:
+            return jsonify({'error': 'Failed to download files from the server.'}), download_response.status_code
+
+        # Extract files from the zip archive
+        with ZipFile(BytesIO(download_response.content), 'r') as zip_file:
+            # Extract PDF files from the zip archive
+            pdf_files = [name for name in zip_file.namelist() if name.endswith('.pdf')]
+
+            # Read the content of each PDF file
+            pdf_contents = {}
+            for pdf_file in pdf_files:
+                with zip_file.open(pdf_file) as f:
+                    # Encode binary data to base64
+                    encoded_data = base64.b64encode(f.read()).decode('utf-8')
+                    pdf_contents[pdf_file] = encoded_data
+
+        # Return the extracted PDF contents as JSON data
+        return jsonify(pdf_contents)
+    except Exception as e:
+        return jsonify({'error': f'Error extracting and returning files: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
