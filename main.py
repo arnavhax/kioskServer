@@ -8,8 +8,6 @@ import os
 import base64
 app = Flask(__name__)
 CORS(app)
-UPLOAD_DIRECTORY = 'user_uploads'
-os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
 
 CLOUD_SERVER_URL = 'http://127.0.0.1:3000'  # Replace with your cloud server URL
 
